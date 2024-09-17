@@ -3,29 +3,33 @@ const net = std.net;
 const mem = std.mem;
 const fs = std.fs;
 
-pub fn get_dir_entries(path: []const u8) !void {
-    var dir = try fs.cwd().openDir(path, .{});
+pub fn get_dir_entries(allocator: mem.Allocator, path: []const u8) !std.ArrayList(fs.Dir.Walker.Entry) {
+    var list = std.ArrayList(fs.Dir.Walker.Entry).init(allocator);
+    const opendir_opt: fs.Dir.OpenDirOptions = .{ .access_sub_paths = true };
+    var dir = try fs.cwd().openDir(path, opendir_opt);
     defer dir.close();
 
-    var it = try dir.walk(std.heap.page_allocator);
+    var it: fs.Dir.Walker = try dir.walk(std.heap.page_allocator);
     while (try it.next()) |entry| {
-        const basename = entry.basename;
-        const kind = entry.kind;
-        const path = entry.path;
-
-        std.debug.print("Path: {s}\n", .{path});
-        std.debug.print("Metadata: {any}\n", .{basename});
-        std.debug.print("Stats: {any}\n", .{kind});
-
-        if (entry.kind == .Directory) {
-            // If it's a directory, you can optionally recurse into it
-            std.debug.print("Entering directory: {s}\n", .{entry.path});
-            try get_dir_entries(entry.path); // Recursion to walk subdirectories
-        }
+        _ = try list.append(entry);
     }
+
+    return list;
 }
 
-pub fn main() !void {
+test "get dir test" {
+    const allocator = std.testing.allocator;
     const path = "./notes";
-    _ = try get_dir_entries(path);
+    const list = try get_dir_entries(allocator, path);
+    defer _ = list.deinit();
+
+    for (list.items) |entry| {
+        const basename = entry.basename;
+        const kind = entry.kind;
+        const epath = entry.path;
+
+        std.debug.print("Path: {s} ", .{epath});
+        std.debug.print("basename: {s} ", .{basename});
+        std.debug.print("kind: {any}\n", .{kind});
+    }
 }

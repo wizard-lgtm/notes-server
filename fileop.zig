@@ -1,35 +1,37 @@
 const std = @import("std");
-const net = std.net;
-const mem = std.mem;
 const fs = std.fs;
+const mem = std.mem;
 
-pub fn get_dir_entries(allocator: mem.Allocator, path: []const u8) !std.ArrayList(fs.Dir.Walker.Entry) {
-    var list = std.ArrayList(fs.Dir.Walker.Entry).init(allocator);
-    const opendir_opt: fs.Dir.OpenDirOptions = .{ .access_sub_paths = true };
-    var dir = try fs.cwd().openDir(path, opendir_opt);
+const Dir = fs.Dir;
+
+///
+/// Returns an arraylist of Dir.Entry for spesific path given by argument
+///
+pub fn dir_entries(allocator: mem.Allocator, path: []const u8) !std.ArrayList(Dir.Entry) {
+    var list = std.ArrayList(Dir.Entry).init(allocator);
+
+    var dir = try std.fs.cwd().openDir(path, .{ .iterate = true });
     defer dir.close();
 
-    var it: fs.Dir.Walker = try dir.walk(std.heap.page_allocator);
-    while (try it.next()) |entry| {
-        _ = try list.append(entry);
+    var iterator = dir.iterate();
+    while (try iterator.next()) |next_entry| {
+        // Skip '.' and '..'
+        if (std.mem.eql(u8, next_entry.name, ".") or std.mem.eql(u8, next_entry.name, "..")) {
+            continue;
+        }
+        try list.append(next_entry);
     }
 
     return list;
 }
 
-test "get dir test" {
+test "dir entries" {
     const allocator = std.testing.allocator;
-    const path = "./notes";
-    const list = try get_dir_entries(allocator, path);
-    defer _ = list.deinit();
+
+    const list = try dir_entries(allocator, ".");
+    defer list.deinit();
 
     for (list.items) |entry| {
-        const basename = entry.basename;
-        const kind = entry.kind;
-        const epath = entry.path;
-
-        std.debug.print("Path: {s} ", .{epath});
-        std.debug.print("basename: {s} ", .{basename});
-        std.debug.print("kind: {any}\n", .{kind});
+        std.debug.print("Entry: {s}\n", .{entry.name});
     }
 }

@@ -4,6 +4,31 @@ const mem = std.mem;
 
 const fileop = @import("./fileop.zig");
 
+// ///
+// /// concats str to buffer
+// ///
+pub fn strcat(allocator: std.mem.Allocator, dest: *[]u8, src: []const u8) !void {
+    const oldsize = dest.len;
+    const newsize = oldsize + src.len;
+    dest.* = try allocator.realloc(dest.*, newsize);
+
+    @memcpy(dest.*[oldsize..newsize], src);
+}
+
+test "strcat" {
+    const allocator = std.testing.allocator;
+
+    const str = "Hello";
+    const str2 = " world!";
+    var buffer = try allocator.alloc(u8, str.len);
+    defer _ = allocator.free(buffer);
+    @memcpy(buffer[0..str.len], str);
+
+    _ = try strcat(allocator, &buffer, str2);
+
+    try std.testing.expect(std.mem.eql(u8, buffer, "Hello world!"));
+}
+
 ///
 /// chops n size of character from end of the given buffer
 /// frees old buffer and returns new sized buffer
